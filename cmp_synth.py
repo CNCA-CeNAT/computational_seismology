@@ -49,13 +49,13 @@ def main():
     for stream in recorded:
         synth_file = match_streams(stream, files)
         if not synth_file:
-            print('Stream %s has no math in directory %s' % (str(stream), directory))
+            print('Stream %s has no match in directory %s' % (stream.stats['network'] + '.' + stream.stats['station'] + '.' + stream.stats['channel'],  directory))
         else:
             observed.append(stream)
-        synth_data = np.loadtxt(os.path.join(directory, synth_file))
-        synth = obspy.Trace(synth_data[:,1])
-        synth.stats['delta'] = synth_step 
-        synths.append(synth)
+            synth_data = np.loadtxt(os.path.join(directory, synth_file))
+            synth = obspy.Trace(synth_data[:,1])
+            synth.stats['delta'] = synth_step 
+            synths.append(synth)
     del recorded
 
     # Resample to the smallest sample rate i.e. biggest step (delta)
@@ -74,12 +74,14 @@ def main():
     # Remove instrument response and sensivity
     for stream in observed:
         stream.detrend(type='linear')
-        stream.simulate(paz_remove=Trillium_seimometer_response, remove_sensitivity=True, water_level=0, taper_fraction=0.5)
+        stream.simulate(paz_remove=Trillium_seimometer_response, remove_sensitivity=True, water_level=0, taper_fraction=0.05)
     
     # Low-pass filter
     for obs, synth in zip(observed, synths):
         obs.filter('lowpass', freq=corner_freq)
+        obs.data = obs.data / np.max(obs.data)
         synth.filter('lowpass', freq=corner_freq)
+        synth.data = synth.data / np.max(synth.data)
 
     # Synchronize seismograms using correlation
     synch_index = []
@@ -90,14 +92,19 @@ def main():
     time = new_delta * np.arange(len(synths[0]))
     for obs, synth, i in zip(observed, synths, synch_index):
         fig, ax = plt.subplots()
-        ax.plot(time, obs.data[i:i+len(synth)], label="Observed")
+        try:
+            ax.plot(time, obs.data[i:i+len(time)], label="Observed")
+        except:
+            print("Error ploting stream " + str(obs))
+            continue
+        title = obs.stats['network'] + '.' + obs.stats['station'] + '.' + obs.stats['channel']
         ax.plot(time, synth.data, label="Synthetic")
-        ax.set_title(obs.stats['network'] + '.' + obs.stats['station'] + '.' + obs.stats['channel'])
+        ax.set_title(title)
         ax.set_ylabel(r'Acceleration ($m/s^2$)')
         ax.set_xlabel('Time (s)')
         ax.legend()
         fig.tight_layout()
-    plt.show()
+        fig.savefig(title + '.png')
 
 if __name__ == '__main__':
     main()
