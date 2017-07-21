@@ -22,7 +22,7 @@ def match_streams(stream, files):
     return None
 
 def print_usage_exit():
-    print('Usage: %s observed_seismograms.mseed path_to_synths synth_step' % sys.argv[0])
+    print('Usage: %s observed_seismograms.mseed path_to_synths synth_step corner_freq' % sys.argv[0])
     sys.exit(1)
 
 
@@ -31,7 +31,8 @@ def main():
         recorded = obspy.read(sys.argv[1])
         directory = sys.argv[2]
         files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
-        synth_step = float(sys.argv[3])
+        synth_step  = float(sys.argv[3])
+        corner_freq = float(sys.argv[4])
     except OSError:
         print("Error openning file or directory")
         print_usage_exit()
@@ -39,7 +40,7 @@ def main():
         print('Wrong number of arguments')
         print_usage_exit()
     except ValueError:
-        print('Check synth_step format')
+        print('Check synth_step or corner_freq format')
         print_usage_exit()
 
     # Match all observed seismograms with a synthetic one in "directory"
@@ -76,8 +77,27 @@ def main():
         stream.simulate(paz_remove=Trillium_seimometer_response, remove_sensitivity=True, water_level=0, taper_fraction=0.5)
     
     # Low-pass filter
-    for stream in observed:
-        
+    for obs, synth in zip(observed, synths):
+        obs.filter('lowpass', freq=corner_freq)
+        synth.filter('lowpass', freq=corner_freq)
+
+    # Synchronize seismograms using correlation
+    synch_index = []
+    for obs, synth in zip(observed, synths):
+        synch_index.append(np.argmax(np.correlate(obs, synth)))
+    
+    # Plot seimograms
+    time = new_delta * np.arange(len(synths[0]))
+    for obs, synth, i in zip(observed, synths, synch_index):
+        fig, ax = plt.subplots()
+        ax.plot(time, obs.data[i:i+len(synth)], label="Observed")
+        ax.plot(time, synth.data, label="Synthetic")
+        ax.set_title(obs.stats['network'] + '.' + obs.stats['station'] + '.' + obs.stats['channel'])
+        ax.set_ylabel(r'Acceleration ($m/s^2$)')
+        ax.set_xlabel('Time (s)')
+        ax.legend()
+        fig.tight_layout()
+    plt.show()
 
 if __name__ == '__main__':
     main()

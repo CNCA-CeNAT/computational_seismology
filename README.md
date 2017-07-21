@@ -1,4 +1,4 @@
-# Framework para la simulación en paralelo de fenómenos sísmocos y volcánicos
+# Framework para la simulación en paralelo de fenómenos sísmicos y volcánicos
 
 ## Pre-simulación
 
