@@ -58,17 +58,10 @@ def main():
             synths.append(synth)
     del recorded
 
-    # Resample to the smallest sample rate i.e. biggest step (delta)
-    sample_rate = max(observed[0].stats['delta'], synths[0].stats['delta'])
-    if observed[0].stats['delta'] > synths[0].stats['delta']:
-        new_delta = observed[0].stats['delta']
-        resample = synths
-    else:
-        new_delta = synths[0].stats['delta']
-        resample = observed
-
-    for trace in resample:
-        trace.resample(1/new_delta)
+    # Resample synthetics to frequency of observed seimograms
+    new_delta = observed[0].stats['delta']
+    for synth in synths:
+        synth.resample(1/new_delta)
 
     # Remove the trend and taper observed seismograms
     # Remove instrument response and sensivity
