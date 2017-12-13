@@ -80,7 +80,7 @@ def main():
         ax.set_xlabel(r'Time (s)')
         ax.legend()
         fig.tight_layout()
-        fig.savefig(title + '.png')
+        fig.savefig(title + '.svg')
         ax.clear()
 
 if __name__ == '__main__':
