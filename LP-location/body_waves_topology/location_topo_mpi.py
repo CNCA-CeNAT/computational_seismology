@@ -48,7 +48,7 @@ def main():
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
-    path = os.path.expanduser('~/LP-location/body_waves_topology/')
+    path = os.path.expanduser('~/computational_seismology/LP-location/body_waves_topology/')
 
     if rank == 0:
         size = comm.Get_size()
