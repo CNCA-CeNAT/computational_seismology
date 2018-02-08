@@ -1,5 +1,0 @@
-# Capellades event
-event time       = 20161201T00:25:19.59710
-synths directory = /home/guillermo/Downloads/specfem/capellades_synth
-simulation step  = 0.006
-low pass freq    = 0.11 
