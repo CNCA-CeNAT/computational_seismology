@@ -1,5 +1,5 @@
 LP-location/locations_output.csv
-
+*gmon.out
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

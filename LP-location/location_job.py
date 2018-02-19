@@ -9,7 +9,6 @@ import modules
 
 modules.load('intelpython/3.5')
 
-#modules.run('mpirun python location_mpi.py')
-modules.run('mpirun python body_waves_topology/location_topo_mpi.py')
+modules.run('mpirun python /home/gmocornejos/computational_seismology/LP-location/body_waves_topology/location_topo_mpi.py')
 
 

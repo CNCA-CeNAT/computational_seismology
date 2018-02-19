@@ -5,13 +5,13 @@ import os
 from mpi4py import MPI
 
 # Minimum and maximum trial source amplitudes:
-A_i = 0.0001
-A_f = 0.007
-dA = 0.0001
+A_i = 0.0
+A_f = 0.01
+dA = 0.001
 # Depth to be attained
 z_range = 2000
 # Parameters
-f    = 3.571
+f    = 2
 beta = 2300
 Q    = 50
 B    = (math.pi*f)/(Q*beta)
@@ -30,13 +30,16 @@ def locate_events(events, stations, topography, topo_hdr):
                     for A in A_grid:
                         err_accum = 0
                         for s_k, s_v in stations.items():
+                            if np.isnan(event[s_k]):
+                                continue
                             r = math.sqrt(math.pow(x-s_v[0], 2) + math.pow(y-s_v[1], 2) + math.pow(z-s_v[2], 2))
                             A_calc = A * math.exp(-B*r) / r
                             err_accum += math.pow(A_calc - event[s_k], 2)
                         if err_accum < min_err:
                             min_err = err_accum
                             loc = [event['event'], x, y, z, A, err_accum]
-        A_obs = sum([math.pow(event[s], 2) for s in stations.keys()])
+#        A_obs = sum([math.pow(event[s], 2) for s in stations.keys()])
+        A_obs = sum([math.pow(event[s], 2) for s in stations.keys() if not np.isnan(event[s])])
         loc[-1] = 100.0 * math.sqrt(loc[-1] / A_obs)
         locations.append(loc)
         print(loc)
@@ -48,13 +51,13 @@ def main():
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
 
-    path = os.path.expanduser('~/computational_seismology/LP-location/body_waves_topology/')
+    path = os.path.abspath(__file__).replace(__file__.split('/')[-1], '') 
 
     if rank == 0:
         size = comm.Get_size()
         with open(path + 'data/amplitudes', 'rb') as data:
             events = pickle.load(data)
-            events = [e for e in events if sum(np.isnan([float(a) for a in e.values()])) == 0]
+#            events = [e for e in events if sum(np.isnan([float(a) for a in e.values()])) == 0]
         events = [events[i::size] for i in range(size)]
 
         stations = {}
