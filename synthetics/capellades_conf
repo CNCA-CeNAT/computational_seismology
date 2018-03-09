@@ -1,5 +1,12 @@
 # Capellades event
-event time       = 20161201T00:25:19.59710
-synths directory = /home/guillermo/Downloads/specfem/capellades_synth
-simulation step  = 0.006
-low pass freq    = 0.11 
+#   For turning specfem output into miniseed files
+event time      = 20161201T00:25:19.59710
+directory       = /home/guillermo/Documents/synthethics/specfem/tmp
+simulation step = 0.006
+output name     = capellades_synths.mseed
+#   For filtering before plotting
+seis1           = /home/guillermo/Documents/computational_seismology/synthetics/capellades_synths.mseed
+#seis2           = /home/guillermo/Downloads/synt/semi-analytical.mseed
+seis2           = iris
+lowpass freq    = 0.11 
+sampling rate   = 20
