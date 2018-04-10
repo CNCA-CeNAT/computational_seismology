@@ -38,7 +38,8 @@ def locate_events(events, stations, topography, topo_hdr):
                             err_accum += math.pow(A_calc - event[s_k], 2)
                         if err_accum < min_err:
                             min_err = err_accum
-                            loc = [event['event'], x, y, z, A, err_accum]
+                            num_stations = len(stations) - sum([np.isnan(event[s_k]) for s_k in stations.keys()])
+                            loc = [event['event'], x, y, z, A, num_stations, err_accum]
         A_obs = sum([math.pow(event[s], 2) for s in stations.keys() if not np.isnan(event[s])])
         loc[-1] = 100.0 * math.sqrt(loc[-1] / A_obs)
         locations.append(loc)
@@ -113,7 +114,7 @@ def main():
         locations = [item for sublist in locations for item in sublist]
         print(locations)
         with open(sys.argv[2] + '_output.csv', 'w') as output:
-            output.write('event;x;y;z;amplitud;error\n')
+            output.write('event;x;y;z;amplitud;num_stations;error\n')
             for hypocenter in locations:
                 output.write(';'.join([str(e) for e in hypocenter]) + '\n')
  
