@@ -5,8 +5,8 @@ directory       = /home/guillermo/Documents/synthethics/specfem/tmp
 simulation step = 0.006
 output name     = capellades_synths.mseed
 #   For filtering before plotting
-seis1           = /home/guillermo/Documents/computational_seismology/synthetics/capellades_synths.mseed
-#seis2           = /home/guillermo/Downloads/synt/semi-analytical.mseed
+#seis1           = /home/guillermo/Documents/synthetics/specfem/capellades_synth/capellades_synths.mseed
+seis2           = /home/guillermo/Documents/synthetics/specfem/capellades_synth/semi-analytical.mseed
 seis2           = iris
 lowpass freq    = 0.11 
 sampling rate   = 20
