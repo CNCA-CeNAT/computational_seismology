@@ -10,9 +10,13 @@ import sys
 
 modules.load('intelpython/3.5')
 
-exe = '/home/gmocornejos/computational_seismology/LP-location/body_waves_topography/location_topo_mpi.py'
+#exe = '/home/gmocornejos/computational_seismology/LP-location/body_waves_topography/location_topo_mpi.py'
 
-conf = '/home/gmocornejos/computational_seismology/LP-location/body_waves_topography/location.conf'
+exe = '/home/gmocornejos/computational_seismology/LP-location/body_waves_2/tremor_location.py'
+
+#conf = '/home/gmocornejos/computational_seismology/LP-location/body_waves_topography/location.conf'
+
+conf = '/home/gmocornejos/computational_seismology/LP-location/body_waves_2/location.conf'
 
 try:
     configuration = sys.argv[1]
