@@ -1,6 +1,6 @@
 #!/opt/intel/intelpython35/bin/python3
 
-#PBS -N tremor_location
+#PBS -N tremor_mpi
 #PBS -q phi-n3h24
 #PBS -l nodes=3:ppn=64
 #PBS -l walltime=23:00:00 
