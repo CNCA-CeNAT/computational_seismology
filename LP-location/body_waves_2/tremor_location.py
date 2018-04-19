@@ -6,6 +6,21 @@ import sys
 import socket
 from mpi4py import MPI
 
+# Minimum and maximum trial source amplitudes:
+A_i = 0.0
+A_f = 0.007
+dA  = 0.0001
+
+# Depth to be attained
+z_range = 2000
+
+# Parameters
+f    = 2
+beta = 2300
+Q    = 50
+B    = (math.pi*f)/(Q*beta)
+
+
 def create_communicators():
     comm_global = MPI.COMM_WORLD
 
@@ -75,8 +90,29 @@ def split_topography(topo_hdr, size):
         x = accum % topo_hdr['ncols']
         split.append((int(y), int(x)))
         accum += cells_per_core
-    split[-1] = (topo_hdr['nrows'] - 1, topo_hdr['ncols'] - 1)
-    return split    
+    split_range = [(si, sf) for si, sf in zip(split[:-1], split[1:])]
+    split_range.append((split[-1], (topo_hdr['nrows'], topo_hdr['ncols'])))
+
+    return split_range
+
+
+#    ((yi, xi),(yf, xf)) = comm.scatter(split, root=0) 
+# Cambiar split para que envíe el la posición inicial y final, las coordenadas las obtengo con // y %. 
+def loc_minimum_error(event, stations, split, )
+#   Casi que igual a locate_events en location_topo_mpi.py    
+
+
+def locate_events(comm, events, stations, topo_hdr, topo):
+    if comm.Get_rank() == 0:
+        split = split_topography(topo_hdr, comm.Get_size())
+    else:
+        split = None
+    split = comm.scatter(split, root=0) 
+    loc = loc_minimum_error()
+#   if comm.Get_rank() == 0:    
+#       loc =  comm.reduce(loc, MPI.MIN)
+#       locations.append(loc)
+#   return locations
 
 def main():
     comm_global, comm_fine, comm_coarse = create_communicators()
@@ -94,8 +130,11 @@ def main():
             events = None
         events = comm_coarse.scatter(events, root=0)
 
-    if comm_fine.Get_rank() == 0:
-        split = split_topography(topo_hdr, comm_fine.Get_size())
+    local_events = locate_events(comm_fine, events, stations, topo_hdr, topography)
+#   terminar parecido a location_topo_mpi.py
+#   locations = comm_coarse
+#   if comm_coarse == 0:
+#       locations.gather(
 
 if __name__ == '__main__':
     main()
