@@ -81,25 +81,47 @@ def load_topography(dem):
 
 def split_topography(topo_hdr, size):
     cells_total = topo_hdr['ncols'] * topo_hdr['nrows']
-    cells_per_core =  cells_total / size
+    cells_per_core =  cells_total // size
 
     accum = 0
     split = []
     while accum < cells_total:
-        y = accum // topo_hdr['ncols']
-        x = accum % topo_hdr['ncols']
-        split.append((int(y), int(x)))
+        split.append((accum, accum+cells_per_core))
         accum += cells_per_core
-    split_range = [(si, sf) for si, sf in zip(split[:-1], split[1:])]
-    split_range.append((split[-1], (topo_hdr['nrows'], topo_hdr['ncols'])))
+    split[-1] = (split[-1][0], cells_total)
 
-    return split_range
+    return split
 
+def loc_minimum_error(event, stations, topo_hdr, topography, split):
+    A_grid = np.arange(A_i, A_f+dA, dA)
+    z_grid = np.arange(0, z_range, topo_hdr['cellsize'])
+    min_err = math.inf
 
-#    ((yi, xi),(yf, xf)) = comm.scatter(split, root=0) 
-# Cambiar split para que envíe el la posición inicial y final, las coordenadas las obtengo con // y %. 
-def loc_minimum_error(event, stations, split, )
-#   Casi que igual a locate_events en location_topo_mpi.py    
+    y_i = split[0] // topo_hdr['ncols'] 
+    y   = topo_hdr['ylucorner'] - y_i * topo_hdr['cellsize']
+    for cell in range(split[0], split[1]):
+        x_i = cell % topo_hdr['ncols']
+        x   = topo_hdr['xllcorner'] + x_i * topo_hdr['cellsize']
+        if x_i == 0:
+            y_i = cell // topo_hdr['ncols']
+            y   = topo_hdr['ylucorner'] - y_i * topo_hdr['cellsize']
+        for dz in z_grid:
+            z = topography[y_i, x_i] - dz
+            for A in A_grid:
+                err_accum = 0
+                for s_k, s_v in stations.items():
+                    if np.isnan(event[s_k]):
+                        continue
+                    r = math.sqrt(math.pow(x-s_v[0], 2) + math.pow(y-s_v[1], 2) + math.pow(z-s_v[2], 2))
+                    A_calc = A * math.exp(-B*r) / r
+                    err_accum += math.pow(A_calc - event[s_k], 2)
+                if err_accum < min_err:
+                    min_eff = err_accum
+                    num_stations = len(stations) - sum([np.isnan(event[s_k] for s_k in stations.keys())])
+                    loc = [err_accum, event['event'], x, y, z, A, num_stations]
+    A_obs = sum([math.pow(event[s_k], 2) for s_k in stations.keys() if not np.isnan(event[s_k])])
+    loc[0] = 100.0 * math.sqrt(loc[0] / A_obs)
+    return tuple(loc)
 
 
 def locate_events(comm, events, stations, topo_hdr, topo):
@@ -108,11 +130,14 @@ def locate_events(comm, events, stations, topo_hdr, topo):
     else:
         split = None
     split = comm.scatter(split, root=0) 
-    loc = loc_minimum_error()
-#   if comm.Get_rank() == 0:    
-#       loc =  comm.reduce(loc, MPI.MIN)
-#       locations.append(loc)
-#   return locations
+    
+    locations = []
+    for event in events:
+        loc = loc_minimum_error(event, stations, topo_hdr, topo, split)
+        loc = comm.reduce(loc, MPI.MIN)
+        if comm.Get_rank() == 0:
+            locations.append(loc)
+    return locations
 
 def main():
     comm_global, comm_fine, comm_coarse = create_communicators()
@@ -129,12 +154,17 @@ def main():
         else:
             events = None
         events = comm_coarse.scatter(events, root=0)
+    else:
+        events = None
+    events = comm_fine.bcast(events, root=0)
 
-    local_events = locate_events(comm_fine, events, stations, topo_hdr, topography)
-#   terminar parecido a location_topo_mpi.py
-#   locations = comm_coarse
-#   if comm_coarse == 0:
-#       locations.gather(
+    delegated_events = locate_events(comm_fine, events, stations, topo_hdr, topography)
+
+    if comm_coarse != None:
+        locations = comm_coarse.gather(delegated_events, root=0)
+
+    if comm_global.Get_rank() == 0:
+         print(locations)            
 
 if __name__ == '__main__':
     main()
