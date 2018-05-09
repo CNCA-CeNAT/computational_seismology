@@ -116,8 +116,8 @@ def loc_minimum_error(event, stations, topo_hdr, topography, split):
                     A_calc = A * math.exp(-B*r) / r
                     err_accum += math.pow(A_calc - event[s_k], 2)
                 if err_accum < min_err:
-                    min_eff = err_accum
-                    num_stations = len(stations) - sum([np.isnan(event[s_k] for s_k in stations.keys())])
+                    min_err = err_accum
+                    num_stations = len(stations) - sum([np.isnan(event[s_k]) for s_k in stations.keys()])
                     loc = [err_accum, event['event'], x, y, z, A, num_stations]
     A_obs = sum([math.pow(event[s_k], 2) for s_k in stations.keys() if not np.isnan(event[s_k])])
     loc[0] = 100.0 * math.sqrt(loc[0] / A_obs)
@@ -164,7 +164,12 @@ def main():
         locations = comm_coarse.gather(delegated_events, root=0)
 
     if comm_global.Get_rank() == 0:
-         print(locations)            
-
+        locations = [item for sublist in locations for item in sublist]
+        print(locations)
+        with open(sys.argv[2] + '_output.csv', 'w') as output:
+            output.write('error;event;x;y;z;amplitud;num_stations\n')
+            for hypocenter in locations:
+                output.write(';'.join([str(e) for e in hypocenter]) + '\n')
+        
 if __name__ == '__main__':
     main()
