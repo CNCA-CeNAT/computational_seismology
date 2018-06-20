@@ -2,7 +2,7 @@
 
 #PBS -N tremor_python
 #PBS -q phi-n6h24
-#PBS -l nodes=3:ppn=64
+#PBS -l nodes=6:ppn=64
 #PBS -l walltime=24:00:00 
 
 import modules
