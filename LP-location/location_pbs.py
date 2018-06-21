@@ -12,7 +12,7 @@ modules.load('intelpython/3.5')
 
 path = '/home/gmocornejos/computational_seismology/LP-location/'
 
-exe = path + 'tremor_location_v2.py'
+exe = path + 'tremor_location.py'
 conf = path + 'location.conf'
 
 try:

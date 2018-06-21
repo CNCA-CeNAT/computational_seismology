@@ -3,7 +3,6 @@ import pickle
 import numpy as np
 import os
 import sys
-import socket
 from mpi4py import MPI
 
 # Minimum and maximum trial source amplitudes:
@@ -21,20 +20,68 @@ Q    = 50
 B    = (math.pi*f)/(Q*beta)
 
 
-def create_communicators():
-    comm_global = MPI.COMM_WORLD
+def loc_minimum_error(event, topography, stations):
+    A_total     = (A_f - A_i) / dA
+    z_total     = z_range / topography['cellsize']
+    total_cells = topography['ncols'] * topography['nrows'] * A_total * z_total
 
-    ip = int(socket.gethostbyname(socket.gethostname()).replace('.', ''))
-    comm_fine_grained = comm_global.Split(ip)
-
-    comm_coarse_grained = None
-    color = 0
-    if comm_fine_grained.Get_rank() == color:
-        comm_coarse_grained = comm_global.Split(color)
+    comm = MPI.COMM_WORLD
+    num_ranks = comm.Get_size()
+    rank      = comm.Get_rank()
+    chunks    = total_cells // (num_ranks-1)
+    if rank == num_ranks - 1:
+        my_range = range(int(chunks*rank), int(chunks*rank + total_cells % (num_ranks-1)))
     else:
-        comm_global.Split(MPI.UNDEFINED)
+        my_range = range(int(chunks*rank), int(chunks*(rank+1)))
 
-    return comm_global, comm_fine_grained, comm_coarse_grained
+    # cell order: x, y, z, A
+    x_quotient = topography['nrows'] * z_total * A_total
+    y_quotient = z_total * A_total
+    z_quotient = A_total
+
+    min_err = math.inf
+    for cell in my_range:
+        x_index = cell // x_quotient
+        y_index = (cell % x_quotient) // y_quotient
+        z_index = ((cell % x_quotient) % y_quotient) // z_quotient
+        A_index = ((cell % x_quotient) % y_quotient) %  z_quotient
+
+        x = topography['xllcorner'] + x_index * topography['cellsize']
+        y = topography['ylucorner'] - y_index * topography['cellsize']
+        z = topography['data'][int(y_index), int(x_index)] - z_index * topography['cellsize']
+        A = A_i + A_index * dA
+
+        err_accum = 0
+        for s_k, s_v in stations.items():
+            if np.isnan(event[s_k]):
+                continue
+            r = math.sqrt(math.pow(x-s_v[0], 2) + math.pow(y-s_v[1], 2) + math.pow(z-s_v[2], 2))
+            A_calc = A * math.exp(-B*r) / r
+            err_accum += math.pow(A_calc - event[s_k], 2)
+        if err_accum < min_err:
+            min_err = err_accum
+            num_stations = len(stations) - sum([np.isnan(event[s_k]) for s_k in stations.keys()])
+            loc = [err_accum, event['event'], x, y, z, A, num_stations]
+    A_obs = sum([math.pow(event[s_k], 2) for s_k in stations.keys() if not np.isnan(event[s_k])])
+    loc[0] = 100.0 * math.sqrt(loc[0] / A_obs)
+    return tuple(loc)
+
+
+def main(events, topography, stations):
+    comm = MPI.COMM_WORLD
+    locations = []
+    for event in events:
+        loc = loc_minimum_error(event, topography, stations)
+        loc = comm.reduce(loc, MPI.MIN)
+        if comm.Get_rank() == 0:
+                locations.append(loc)
+                print(loc)
+    if comm.Get_rank() == 0:
+        with open(sys.argv[2] + '_output.csv', 'w') as output:
+                output.write('error;event;x;y;z;amplitud;num_stations\n')
+                for hypocenter in locations:
+                    output.write(';'.join([str(e) for e in hypocenter]) + '\n')
+        
 
 def parse_configuration():
     usage = '\n$ ./%s conf_file configuration' % sys.argv[0]
@@ -73,103 +120,27 @@ def load_stations(station_file):
 def load_topography(dem):
     topo_hdr_rows = 6
     with open(dem) as topo_f:
-        topo_hdr = [topo_f.readline().strip().split() for r in range(topo_hdr_rows)]
-        topo_hdr = {h[0]:int(float(h[-1])) for h in topo_hdr}
-        topo_hdr['ylucorner'] = topo_hdr['yllcorner'] + (topo_hdr['nrows'] - 1) * topo_hdr['cellsize']
-        topography = np.loadtxt(topo_f)
-    return topo_hdr, topography
+        topo = [topo_f.readline().strip().split() for r in range(topo_hdr_rows)]
+        topo = {h[0]:int(float(h[-1])) for h in topo}
+        topo['ylucorner'] = topo['yllcorner'] + (topo['nrows'] - 1) * topo['cellsize']
+        topo['data'] = np.loadtxt(topo_f)
+    return topo
 
-def split_topography(topo_hdr, size):
-    cells_total = topo_hdr['ncols'] * topo_hdr['nrows']
-    cells_per_core =  cells_total // size
-
-    accum = 0
-    split = []
-    while accum < cells_total:
-        split.append((accum, accum+cells_per_core))
-        accum += cells_per_core
-    split[-1] = (split[-1][0], cells_total)
-
-    return split
-
-def loc_minimum_error(event, stations, topo_hdr, topography, split):
-    A_grid = np.arange(A_i, A_f+dA, dA)
-    z_grid = np.arange(0, z_range, topo_hdr['cellsize'])
-    min_err = math.inf
-
-    y_i = split[0] // topo_hdr['ncols'] 
-    y   = topo_hdr['ylucorner'] - y_i * topo_hdr['cellsize']
-    for cell in range(split[0], split[1]):
-        x_i = cell % topo_hdr['ncols']
-        x   = topo_hdr['xllcorner'] + x_i * topo_hdr['cellsize']
-        if x_i == 0:
-            y_i = cell // topo_hdr['ncols']
-            y   = topo_hdr['ylucorner'] - y_i * topo_hdr['cellsize']
-        for dz in z_grid:
-            z = topography[y_i, x_i] - dz
-            for A in A_grid:
-                err_accum = 0
-                for s_k, s_v in stations.items():
-                    if np.isnan(event[s_k]):
-                        continue
-                    r = math.sqrt(math.pow(x-s_v[0], 2) + math.pow(y-s_v[1], 2) + math.pow(z-s_v[2], 2))
-                    A_calc = A * math.exp(-B*r) / r
-                    err_accum += math.pow(A_calc - event[s_k], 2)
-                if err_accum < min_err:
-                    min_err = err_accum
-                    num_stations = len(stations) - sum([np.isnan(event[s_k]) for s_k in stations.keys()])
-                    loc = [err_accum, event['event'], x, y, z, A, num_stations]
-    A_obs = sum([math.pow(event[s_k], 2) for s_k in stations.keys() if not np.isnan(event[s_k])])
-    loc[0] = 100.0 * math.sqrt(loc[0] / A_obs)
-    return tuple(loc)
-
-
-def locate_events(comm, events, stations, topo_hdr, topo):
-    if comm.Get_rank() == 0:
-        split = split_topography(topo_hdr, comm.Get_size())
-    else:
-        split = None
-    split = comm.scatter(split, root=0) 
-    
-    locations = []
-    for event in events:
-        loc = loc_minimum_error(event, stations, topo_hdr, topo, split)
-        loc = comm.reduce(loc, MPI.MIN)
-        if comm.Get_rank() == 0:
-            locations.append(loc)
-    return locations
-
-def main():
-    comm_global, comm_fine, comm_coarse = create_communicators()
-    data_files = parse_configuration()
-    stations = load_stations(data_files['stations'])
-    topo_hdr, topography = load_topography(data_files['dem'])
-
-    if comm_coarse != None:
-        if comm_coarse.Get_rank() == 0:
-            size = comm_coarse.Get_size()
-            with open(data_files['events'], 'rb') as events_f:
-                events = pickle.load(events_f)
-            events = [events[i::size] for i in range(size)]
-        else:
-            events = None
-        events = comm_coarse.scatter(events, root=0)
-    else:
-        events = None
-    events = comm_fine.bcast(events, root=0)
-
-    delegated_events = locate_events(comm_fine, events, stations, topo_hdr, topography)
-
-    if comm_coarse != None:
-        locations = comm_coarse.gather(delegated_events, root=0)
-
-    if comm_global.Get_rank() == 0:
-        locations = [item for sublist in locations for item in sublist]
-        print(locations)
-        with open(sys.argv[2] + '_output.csv', 'w') as output:
-            output.write('error;event;x;y;z;amplitud;num_stations\n')
-            for hypocenter in locations:
-                output.write(';'.join([str(e) for e in hypocenter]) + '\n')
-        
 if __name__ == '__main__':
-    main()
+    comm = MPI.COMM_WORLD
+    if comm.Get_rank() == 0:
+        data_files = parse_configuration()
+        stations   = load_stations(data_files['stations'])
+        topography = load_topography(data_files['dem'])
+        with open(data_files['events'], 'rb') as events_f:
+            events = pickle.load(events_f)
+    else:
+        stations   = None
+        topography = None
+        events     = None
+
+    stations   = comm.bcast(stations,   root=0)
+    topography = comm.bcast(topography, root=0)
+    events     = comm.bcast(events,     root=0)
+
+    main(events, topography, stations)
