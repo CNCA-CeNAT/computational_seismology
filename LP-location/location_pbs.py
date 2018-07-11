@@ -1,9 +1,9 @@
 #!/opt/intel/intelpython35/bin/python3
 
 #PBS -N tremor_python
-#PBS -q phi-n6h24
+#PBS -q phi-n6h96
 #PBS -l nodes=6:ppn=64
-#PBS -l walltime=24:00:00 
+#PBS -l walltime=48:00:00 
 
 import modules
 import sys
