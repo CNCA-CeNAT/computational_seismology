@@ -21,7 +21,6 @@ B    = (math.pi*f)/(Q*beta)
 
 
 def loc_minimum_error(event, topography, stations):
-#    print('Llegué a min_error para el evento ' + str(event['event']))
     A_total     = (A_f - A_i) / dA
     z_total     = z_range / topography['cellsize']
     total_cells = topography['ncols'] * topography['nrows'] * A_total * z_total
@@ -69,7 +68,6 @@ def loc_minimum_error(event, topography, stations):
 
 
 def main(events, topography, stations):
-#    print('Llegué a main')
     comm = MPI.COMM_WORLD
     locations = []
     for event in events:
